@@ -21,10 +21,13 @@
  - https://developer.mozilla.org/en-US/docs/JSON#JSON_in_Firefox_2
  */
 
-var fs = require('fs');
-var program = require('commander');
-var cheerio = require('cheerio');
+var fs = new require('fs');
+var restler = new require('restler');
+var program = new require('commander');
+var cheerio = new require('cheerio');
+
 var HTMLFILE_DEFAULT = "index.html";
+var URL_DEFAULT = "http://aqueous-sands-6983.herokuapp.com";
 var CHECKSFILE_DEFAULT = "checks.json";
 
 var assertFileExists = function(infile) {
@@ -33,27 +36,30 @@ var assertFileExists = function(infile) {
         console.log("%s does not exist. Exiting.", instr);
         process.exit(1); // http://nodejs.org/api/process.html#process_process_exit_code
     }
-    return instr;
-};
 
-var cheerioHtmlFile = function(htmlfile) {
-    return cheerio.load(fs.readFileSync(htmlfile));
+    return instr;
 };
 
 var loadChecks = function(checksfile) {
     return JSON.parse(fs.readFileSync(checksfile));
 };
 
-var checkHtmlFile = function(htmlfile, checksfile) {
-    $ = cheerioHtmlFile(htmlfile);
+var checkHtml = function(html, checksfile) {
+    $ = cheerio.load(html);
     var checks = loadChecks(checksfile).sort();
     var out = {};
     for(var ii in checks) {
         var present = $(checks[ii]).length > 0;
         out[checks[ii]] = present;
     }
+
     return out;
 };
+
+var printJson = function(checkJson) {
+    var outJson = JSON.stringify(checkJson, null, 4);
+    console.log(outJson);
+}
 
 var clone = function(fn) {
     // Workaround for commander.js issue.
@@ -65,10 +71,18 @@ if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-u, --url <html_url>', 'Url to index.html', URL_DEFAULT)
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+
+    if (program.url) {
+        restler.get(program.url).on('complete', function(result) {
+            printJson(checkHtml(result, program.checks));
+        });
+    } else if (program.file) {
+        printJson(checkHtml(fs.readFileSync(program.file), program.checks));
+    }
+
+
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
